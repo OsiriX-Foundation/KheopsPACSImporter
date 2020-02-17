@@ -1,0 +1,16 @@
+{
+  "name": "kheops_pacs_importer",
+  "version": "1.0.0",
+  "description": "KHEOPS PACS Importer",
+  "author": "Joël Spaltenstein <spalte@naturalimage.ch>",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "devDependencies": {
+    "eslint": "^5.16.0",
+    "eslint-config-airbnb-base": "^13.2.0",
+    "eslint-plugin-import": "^2.20.1"
+  },
+  "dependencies": {}
+}
