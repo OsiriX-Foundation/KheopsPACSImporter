@@ -1,14 +1,14 @@
 /* eslint no-console: ["error", { allow: ["info", "warn", "error"] }] */
-/* eslint no-console: ["error", { allow: ["info", "warn", "error"] }] */
 
 const fs = require('fs');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 
 const userAccount = process.env.KHEOPS_SERVICE_ACCOUNT_USER;
-const importerToken = process.env.IMPORTER_TOKEN;
+const importerToken = fs.readFileSync('/run/secrets/importer_token', 'ascii').trim();
 const userPrivKeyPem = fs.readFileSync('/run/secrets/privkey.pem', 'ascii');
 const dicomwebURL = process.env.KHEOPS_PROXY_PACS_WADO_RS;
+
 const authorizationURL = `http://${process.env.KHEOPS_AUTHORIZATION_HOST}:${process.env.KHEOPS_AUTHORIZATION_PORT}${process.env.KHEOPS_AUTHORIZATION_PATH}`;
 
 async function getAccessToken() {
@@ -48,30 +48,29 @@ async function getSeriesUIDs(studyUID, accessToken) {
 async function importSeries(studyUID, seriesUIDs) {
   const authorizedSeriesUIDs = [];
   for (let i = 0; i < seriesUIDs.length; i += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const putResult = await axios.put(`${authorizationURL}/studies/${studyUID}/series/${seriesUIDs[i]}`,
-      {
-        headers: { Authorization: `Bearer ${importerToken}` },
-        validateStatus(status) {
-          return status >= 200 && status < 500;
-        },
-      });
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await axios.put(`${authorizationURL}/studies/${studyUID}/series/${seriesUIDs[i]}`, '',
+        { headers: { Authorization: `Bearer ${importerToken}` } });
 
-    if (putResult.status >= 200 && putResult < 300) {
       console.info(`Successfully Claimed StudyUID:${studyUID} SeriesUID${seriesUIDs[i]}`);
       authorizedSeriesUIDs.push(seriesUIDs[i]);
-    } else {
-      console.info(`Unable to Claim StudyUID:${studyUID} SeriesUID${seriesUIDs[i]}`);
+    } catch (error) {
+      console.info(`Unable to Claim StudyUID:${studyUID} SeriesUID${seriesUIDs[i]} (${error.response.status})`);
     }
   }
 
   const params = new URLSearchParams();
 
-  authorizedSeriesUIDs.forEach((seriesUID) => params.append('SeriesInstanceUID', seriesUID));
-  await axios.post(`${authorizationURL}/studies/${studyUID}/fetch`, params,
-    { headers: { Authorization: `Bearer ${importerToken}` } });
+  if (authorizedSeriesUIDs.length >= 0) {
+    authorizedSeriesUIDs.forEach((seriesUID) => params.append('SeriesInstanceUID', seriesUID));
+    await axios.post(`${authorizationURL}/studies/${studyUID}/fetch`, params,
+      { headers: { Authorization: `Bearer ${importerToken}` } });
 
-  console.info(`Finished fetch for StudyUID:${studyUID}`);
+    console.info(`Finished fetch for StudyUID:${studyUID}`);
+  } else {
+    console.info(`Nothing to fetch for StudyUID:${studyUID}`);
+  }
 }
 
 ((async function process() {
