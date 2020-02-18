@@ -53,10 +53,10 @@ async function importSeries(studyUID, seriesUIDs) {
       await axios.put(`${authorizationURL}/studies/${studyUID}/series/${seriesUIDs[i]}`, '',
         { headers: { Authorization: `Bearer ${importerToken}` } });
 
-      console.info(`Successfully Claimed StudyUID:${studyUID} SeriesUID${seriesUIDs[i]}`);
+      console.info(`Successfully Claimed StudyUID: ${studyUID}, SeriesUID: ${seriesUIDs[i]}`);
       authorizedSeriesUIDs.push(seriesUIDs[i]);
     } catch (error) {
-      console.info(`Unable to Claim StudyUID:${studyUID} SeriesUID${seriesUIDs[i]} (${error.response.status})`);
+      console.info(`Unable to Claim StudyUID: ${studyUID}, SeriesUID: ${seriesUIDs[i]} (${error.response.status})`);
     }
   }
 
@@ -64,25 +64,37 @@ async function importSeries(studyUID, seriesUIDs) {
 
   if (authorizedSeriesUIDs.length >= 0) {
     authorizedSeriesUIDs.forEach((seriesUID) => params.append('SeriesInstanceUID', seriesUID));
+    console.info(`Fetching StudyUID:${studyUID}`);
     await axios.post(`${authorizationURL}/studies/${studyUID}/fetch`, params,
       { headers: { Authorization: `Bearer ${importerToken}` } });
 
-    console.info(`Finished fetch for StudyUID:${studyUID}`);
+    console.info('Finished fetch');
   } else {
     console.info(`Nothing to fetch for StudyUID:${studyUID}`);
   }
 }
 
 ((async function process() {
+  console.info(`Getting an Access Token for user :${userAccount}`);
   const accessToken = await getAccessToken();
+  console.info('Finished Getting the Access Token\n');
+
+  console.info('Getting the full list of studies');
   const studyUIDs = await getStudyUIDs(accessToken);
+  console.info(`${studyUIDs.length} studies found\n`);
 
   for (let i = 0; i < studyUIDs.length; i += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const seriesUIDs = await getSeriesUIDs(studyUIDs[i], accessToken);
+    const studyUID = studyUIDs[i];
 
+    console.info(`Getting the list of series in study: ${studyUID}`);
     // eslint-disable-next-line no-await-in-loop
-    await importSeries(studyUIDs[i], seriesUIDs);
+    const seriesUIDs = await getSeriesUIDs(studyUID, accessToken);
+    console.info(`${seriesUIDs.length} series found\n`);
+
+    console.info(`Importing Study: ${studyUID}`);
+    // eslint-disable-next-line no-await-in-loop
+    await importSeries(studyUID, seriesUIDs);
+    console.info('Finished importing the study\n');
   }
 }()).catch((error) => {
   console.info(error);
