@@ -8,9 +8,21 @@
     "start": "node server.js"
   },
   "devDependencies": {
-    "eslint": "^5.16.0",
-    "eslint-config-airbnb-base": "^13.2.0",
+    "eslint": "^6.8.0",
+    "eslint-config-airbnb-base": "^14.0.0",
     "eslint-plugin-import": "^2.20.1"
   },
-  "dependencies": {}
+  "dependencies": {
+    "axios": "^0.19.2",
+    "jsonwebtoken": "^8.5.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OsiriX-Foundation/KheopsPACSImporter.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/OsiriX-Foundation/KheopsPACSImporter/issues"
+  },
+  "homepage": "https://github.com/OsiriX-Foundation/KheopsPACSImporter#readme"
 }
