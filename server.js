@@ -1,18 +1,15 @@
 /* eslint no-console: ["error", { allow: ["info", "warn", "error"] }] */
 /* eslint no-console: ["error", { allow: ["info", "warn", "error"] }] */
 
-// const http = require('http');
-// const syncRequest = require('sync-request');
-// const url = require('url');
 const fs = require('fs');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 
 const userAccount = process.env.KHEOPS_SERVICE_ACCOUNT_USER;
+const importerToken = process.env.IMPORTER_TOKEN;
 const userPrivKeyPem = fs.readFileSync('/run/secrets/privkey.pem', 'ascii');
 const dicomwebURL = process.env.KHEOPS_PROXY_PACS_WADO_RS;
-
-console.info(`dicomwebURL=${dicomwebURL}`);
+const authorizationURL = `http://${process.env.KHEOPS_AUTHORIZATION_HOST}:${process.env.KHEOPS_AUTHORIZATION_PORT}${process.env.KHEOPS_AUTHORIZATION_PATH}`;
 
 async function getAccessToken() {
   const authenticationJWT = jwt.sign({
@@ -48,14 +45,45 @@ async function getSeriesUIDs(studyUID, accessToken) {
   return (await getSeries(studyUID, accessToken)).map((series) => series['0020000E'].Value[0]);
 }
 
-((async function listStudyUIDS() {
+async function importSeries(studyUID, seriesUIDs) {
+  const authorizedSeriesUIDs = [];
+  for (let i = 0; i < seriesUIDs.length; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const putResult = await axios.put(`${authorizationURL}/studies/${studyUID}/series/${seriesUIDs[i]}`,
+      {
+        headers: { Authorization: `Bearer ${importerToken}` },
+        validateStatus(status) {
+          return status >= 200 && status < 500;
+        },
+      });
+
+    if (putResult.status >= 200 && putResult < 300) {
+      console.info(`Successfully Claimed StudyUID:${studyUID} SeriesUID${seriesUIDs[i]}`);
+      authorizedSeriesUIDs.push(seriesUIDs[i]);
+    } else {
+      console.info(`Unable to Claim StudyUID:${studyUID} SeriesUID${seriesUIDs[i]}`);
+    }
+  }
+
+  const params = new URLSearchParams();
+
+  authorizedSeriesUIDs.forEach((seriesUID) => params.append('SeriesInstanceUID', seriesUID));
+  await axios.post(`${authorizationURL}/studies/${studyUID}/fetch`, params,
+    { headers: { Authorization: `Bearer ${importerToken}` } });
+
+  console.info(`Finished fetch for StudyUID:${studyUID}`);
+}
+
+((async function process() {
   const accessToken = await getAccessToken();
   const studyUIDs = await getStudyUIDs(accessToken);
 
   for (let i = 0; i < studyUIDs.length; i += 1) {
     // eslint-disable-next-line no-await-in-loop
     const seriesUIDs = await getSeriesUIDs(studyUIDs[i], accessToken);
-    seriesUIDs.forEach((seriesUID) => console.info(seriesUID));
+
+    // eslint-disable-next-line no-await-in-loop
+    await importSeries(studyUIDs[i], seriesUIDs);
   }
 }()).catch((error) => {
   console.info(error);
